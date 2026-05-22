@@ -145,29 +145,16 @@ class GameState {
     _onBossDefeated(boss) {
         this.bossesDefeated.push(boss.type);
         this.hud.showMessage(`${boss.bossName} foi derrotado!`, 5, '#44ff44');
+
+        // audio.playVictory() is wired to this event in engine._wireEvents —
+        // do NOT call it here to avoid playing it twice.
         events.emit('boss:death', { boss, type: boss.type });
 
-        // Drops são spawnados pelo EntityManager via DROP_TABLES.
-        // Mensagem extra de hint para o jogador:
-        if (boss.type === 'probe') {
-            this.hud.showMessage('Drops espalhados! Colete-os.', 4, '#ffaa44');
-        } else if (boss.type === 'golem') {
-            this.hud.showMessage('Drops espalhados! Colete-os.', 4, '#ffaa44');
-        } else if (boss.type === 'eye') {
+        // Hint for the final boss only — drops for all bosses are handled by DROP_TABLES.
+        if (boss.type === 'eye') {
             this.hud.showMessage('Artefato de Luz dropou! Leve à superfície para purificar!', 6, '#ffffff');
-        }
-
-        if (window._audio) window._audio.playVictory();
-    }
-
-    /**
-     * Hook chamado quando um inimigo morre.
-     * Drops já são spawnados pelo EntityManager — aqui só notificamos itens raros.
-     */
-    onEnemyKilled(enemy) {
-        // Notificar drop de cristal (visual feedback)
-        if (enemy.dropsCrystal) {
-            // O drop já foi spawnado fisicamente; só log opcional
+        } else {
+            this.hud.showMessage('Drops espalhados! Colete-os.', 4, '#ffaa44');
         }
     }
 

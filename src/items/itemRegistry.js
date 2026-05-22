@@ -423,26 +423,40 @@ const DROP_TABLES = {
 };
 
 /**
- * Retorna a drop table para uma classe/tipo de inimigo.
- * Mapeia tanto enemy.constructor.name quanto boss.type.
+ * Returns the drop table for an enemy instance.
+ *
+ * Dispatch is done on `enemy.type` (the numeric ENEMY_TYPE constant set in each
+ * constructor), NOT on `constructor.name`.  Using constructor.name is fragile
+ * because JS minifiers rename classes, and because it creates an invisible
+ * coupling between the class name string and this function.
+ *
+ * Boss types use the string keys ('probe' | 'golem' | 'eye') assigned in
+ * entityManager.spawnBoss() alongside the numeric ENEMY_TYPE constant.
+ *
+ * To add a new enemy: assign `this.type = ENEMY_TYPE.YOUR_TYPE` in the
+ * constructor, add a DROP_TABLES entry, and add a case here.
+ *
+ * @param {Enemy} enemy
+ * @returns {Array|null}
  */
 function getDropTable(enemy) {
     if (!enemy) return null;
-    // Bosses têm .type ('probe' | 'golem' | 'eye')
-    if (enemy.type === 'probe') return DROP_TABLES.boss_probe;
-    if (enemy.type === 'golem') return DROP_TABLES.boss_golem;
-    if (enemy.type === 'eye')   return DROP_TABLES.boss_eye;
 
-    // Inimigos comuns: usa nome da classe
-    const name = enemy.constructor && enemy.constructor.name;
-    switch (name) {
-        case 'Slime':            return DROP_TABLES.slime;
-        case 'Zombie':           return DROP_TABLES.zombie;
-        case 'Bat':              return DROP_TABLES.bat;
-        case 'CyberInfiltrator': return DROP_TABLES.cyber_infiltrator;
-        case 'CrystalSpider':    return DROP_TABLES.crystal_spider;
-        case 'FireDemon':        return DROP_TABLES.fire_demon;
-        case 'ScrapSentinel':    return DROP_TABLES.scrap_sentinel;
+    switch (enemy.type) {
+        // ── Bosses (string type keys) ──────────────────────────────────────
+        case 'probe': return DROP_TABLES.boss_probe;
+        case 'golem': return DROP_TABLES.boss_golem;
+        case 'eye':   return DROP_TABLES.boss_eye;
+
+        // ── Common enemies (ENEMY_TYPE numeric constants) ──────────────────
+        case ENEMY_TYPE.SLIME:            return DROP_TABLES.slime;
+        case ENEMY_TYPE.ZOMBIE:           return DROP_TABLES.zombie;
+        case ENEMY_TYPE.BAT:              return DROP_TABLES.bat;
+        case ENEMY_TYPE.CYBER_INFILTRATOR:return DROP_TABLES.cyber_infiltrator;
+        case ENEMY_TYPE.CRYSTAL_SPIDER:   return DROP_TABLES.crystal_spider;
+        case ENEMY_TYPE.FIRE_DEMON:       return DROP_TABLES.fire_demon;
+        case ENEMY_TYPE.SCRAP_SENTINEL:   return DROP_TABLES.scrap_sentinel;
+
         default: return null;
     }
 }

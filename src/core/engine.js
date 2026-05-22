@@ -399,14 +399,6 @@ function update(dt) {
         }
     }
 
-    // Check enemy kills for crystal drops
-    for (const e of entities.getEnemies()) {
-        if (e.isDead() && !e._deathProcessed) {
-            e._deathProcessed = true;
-            gameState.onEnemyKilled(e);
-        }
-    }
-
     parallaxTime += dt;
 
     // Particles

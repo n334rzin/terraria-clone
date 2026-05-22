@@ -71,13 +71,8 @@ class StatSystem {
         // Jump power
         this.jumpPower = 1.0 + this._mount.jumpBonus;
 
-        return {
-            maxHp:    this.maxHp,
-            defense:  this.defense,
-            moveSpeed: this.moveSpeed,
-            mineSpeed: this.mineSpeed,
-            jumpPower: this.jumpPower,
-        };
+        // All computed values are on `this` — callers read statSystem.defense etc. directly.
+        // No object allocation needed here.
     }
 
     /**

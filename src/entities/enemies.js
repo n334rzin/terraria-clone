@@ -125,6 +125,25 @@ class Enemy {
         }
     }
 
+    /**
+     * Advance all active projectiles and remove expired ones.
+     * Call this from subclass update() for any enemy that fires projectiles.
+     * Centralises the projectile-tick loop that was previously copy-pasted
+     * across CyberInfiltrator, CrystalSpider, FireDemon, SentinelProbe, BossEye.
+     *
+     * @param {number} dt
+     */
+    _updateProjectiles(dt) {
+        if (!this.projectiles || this.projectiles.length === 0) return;
+        for (let i = this.projectiles.length - 1; i >= 0; i--) {
+            const p = this.projectiles[i];
+            p.x    += p.vx * dt;
+            p.y    += p.vy * dt;
+            p.life -= dt;
+            if (p.life <= 0) this.projectiles.splice(i, 1);
+        }
+    }
+
     drawHPBar(ctx, sx, sy) {
         if (this.hp >= this.maxHp) return;
         const barW = Math.max(this.w, 20);
@@ -330,12 +349,7 @@ class CyberInfiltrator extends Enemy {
                 life: 3.0,
             });
         }
-        // Update projectiles
-        for (let i = this.projectiles.length - 1; i >= 0; i--) {
-            const p = this.projectiles[i];
-            p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
-            if (p.life <= 0) this.projectiles.splice(i, 1);
-        }
+        this._updateProjectiles(dt);
     }
 
     draw(ctx, cam) {
@@ -405,11 +419,7 @@ class CrystalSpider extends Enemy {
                 life: 2.5, isWeb: true,
             });
         }
-        for (let i = this.projectiles.length - 1; i >= 0; i--) {
-            const p = this.projectiles[i];
-            p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
-            if (p.life <= 0) this.projectiles.splice(i, 1);
-        }
+        this._updateProjectiles(dt);
     }
 
     draw(ctx, cam) {
@@ -479,11 +489,7 @@ class FireDemon extends Enemy {
                 });
             }
         }
-        for (let i = this.projectiles.length - 1; i >= 0; i--) {
-            const p = this.projectiles[i];
-            p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
-            if (p.life <= 0) this.projectiles.splice(i, 1);
-        }
+        this._updateProjectiles(dt);
     }
 
     draw(ctx, cam) {
@@ -634,11 +640,7 @@ class SentinelProbe extends Enemy {
                 vx: Math.cos(angle) * 200, vy: Math.sin(angle) * 200, life: 2.5,
             });
         }
-        for (let i = this.projectiles.length - 1; i >= 0; i--) {
-            const p = this.projectiles[i];
-            p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
-            if (p.life <= 0) this.projectiles.splice(i, 1);
-        }
+        this._updateProjectiles(dt);
         // Regenerate shield slowly
         if (this.shieldHp < this.maxShieldHp && this.shieldHp > 0) {
             this.shieldHp = Math.min(this.maxShieldHp, this.shieldHp + 5 * dt);
@@ -805,14 +807,7 @@ class BossEye extends Enemy {
         this.wobbleTime += dt;
         this.actionTimer -= dt;
 
-        // Update projectiles
-        for (let i = this.projectiles.length - 1; i >= 0; i--) {
-            const p = this.projectiles[i];
-            p.x += p.vx * dt;
-            p.y += p.vy * dt;
-            p.life -= dt;
-            if (p.life <= 0) this.projectiles.splice(i, 1);
-        }
+        this._updateProjectiles(dt);
 
         // Phase transition
         if (this.bossPhase === 1 && this.hp <= this.maxHp * 0.5) {
