@@ -21,8 +21,9 @@ class InventorySystem {
 
         // Give starting items
         this.hotbar[0] = { itemId: 'pickaxe', quantity: 1 };
-        this.hotbar[1] = { itemId: 'sword', quantity: 1 };
-        this.hotbar[2] = { itemId: 'torch', quantity: 20 };
+        this.hotbar[1] = { itemId: 'axe',     quantity: 1 };
+        this.hotbar[2] = { itemId: 'sword',   quantity: 1 };
+        this.hotbar[3] = { itemId: 'torch',   quantity: 20 };
     }
 
     /**

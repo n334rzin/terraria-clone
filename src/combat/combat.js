@@ -44,6 +44,9 @@ class CombatSystem {
         this.attackArc = 0; // current visual arc angle (0 = no attack)
         this.attackArcDir = 1;
 
+        // Mining swing animation timer — triggers player.startSwing() periodically
+        this.miningSwingTimer = 0;
+
         // Status effects
         this.webSlowTimer = 0; // seconds of slow movement
         this.webSlowFactor = 0.4; // speed multiplier when slowed
@@ -88,7 +91,7 @@ class CombatSystem {
         // --- Left Click ---
         if (input.mouseDown.left && !this.inventory.isOpen) {
             if (selectedItem && selectedItem.type === ITEM_TYPE.TOOL && dist <= MINE_REACH) {
-                this._handleMining(dt, mbx, mby, selectedItem);
+                this._handleMining(dt, mbx, mby, selectedItem, player);
             } else if (selectedItem && selectedItem.type === ITEM_TYPE.WEAPON) {
                 this._handleAttack(player, input);
             }
@@ -98,6 +101,7 @@ class CombatSystem {
                 this.miningTarget.bx !== mbx || this.miningTarget.by !== mby)) {
                 this.miningTarget = null;
                 this.miningProgress = 0;
+                this.miningSwingTimer = 0;
             }
         }
 
@@ -121,7 +125,7 @@ class CombatSystem {
      *   • Machado  → orgânicos (madeira/folhas/tábua) em velocidade total; minerais BLOQUEADO.
      *   • Picareta → minerais em velocidade total (escalado por tier); orgânicos a 15%.
      */
-    _handleMining(dt, bx, by, tool) {
+    _handleMining(dt, bx, by, tool, player) {
         const blockId = this.chunkManager.getBlockAt(bx, by);
         if (blockId === BLOCK.AIR) return;
         if (blockId === BLOCK.BEDROCK) return;
@@ -139,6 +143,7 @@ class CombatSystem {
             }
             this.miningTarget = null;
             this.miningProgress = 0;
+            this.miningSwingTimer = 0;
             return;
         }
 
@@ -153,10 +158,23 @@ class CombatSystem {
         }
 
         // ── Inicia / continua mineração ────────────────────────────────────
-        if (!this.miningTarget || this.miningTarget.bx !== bx || this.miningTarget.by !== by) {
+        const newTarget = !this.miningTarget || this.miningTarget.bx !== bx || this.miningTarget.by !== by;
+        if (newTarget) {
             this.miningTarget = { bx, by };
             this.miningProgress = 0;
             this.miningRequired = BLOCK_HARDNESS[blockId] || 5;
+            // Dispara swing imediatamente ao começar a minerar
+            if (player) player.startSwing(tool.toolKind || 'pickaxe');
+            this.miningSwingTimer = 0.35;
+        }
+
+        // Mantém a animação de swing enquanto minera (repete a cada ~0.35 s)
+        if (player) {
+            this.miningSwingTimer -= dt;
+            if (this.miningSwingTimer <= 0) {
+                player.startSwing(tool.toolKind || 'pickaxe');
+                this.miningSwingTimer = 0.35;
+            }
         }
 
         // Multiplicador por tipo de ferramenta:
@@ -233,7 +251,7 @@ class CombatSystem {
         this.attackArcDir = player.facing;
 
         // Swing animation + swoosh audio
-        player.startSwing();
+        player.startSwing('sword');
         if (window._audio) window._audio.playSwoosh();
 
         // Check if any enemies are in melee range

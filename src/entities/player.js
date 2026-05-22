@@ -65,6 +65,7 @@ class Player {
         // ---- Tool swing animation ----
         this.swingAngle = 0;    // current rotation (radians)
         this.swingActive = false;
+        this.swingTool = 'pickaxe'; // 'pickaxe' | 'axe' | 'sword'
         this.swingSpeed = 12;   // rad/s
         this.swingMax = Math.PI * 0.6;
 
@@ -229,10 +230,12 @@ class Player {
     // -----------------------------------------------------------------------
     /**
      * Trigger tool swing animation.
+     * @param {string} [toolKind='pickaxe'] - 'pickaxe', 'axe', or 'sword'
      */
-    startSwing() {
+    startSwing(toolKind = 'pickaxe') {
         this.swingActive = true;
         this.swingAngle = -this.swingMax * 0.5;
+        this.swingTool = toolKind;
     }
 
     /**
@@ -322,11 +325,45 @@ class Player {
             ctx.translate(shoulderX, shoulderY);
             const rotAngle = this.facing > 0 ? this.swingAngle : -this.swingAngle;
             ctx.rotate(rotAngle);
-            // Tool arm
-            ctx.fillStyle = '#aaa';
-            ctx.fillRect(0, -2, 22 * this.facing, 3);
-            ctx.fillStyle = '#ddd';
-            ctx.fillRect(18 * this.facing, -3, 6 * this.facing, 5);
+
+            const f = this.facing;
+            const tool = this.swingTool || 'pickaxe';
+
+            if (tool === 'axe') {
+                // Cabo (marrom)
+                ctx.fillStyle = '#7a4e2d';
+                ctx.fillRect(0, -1, 20 * f, 2);
+                // Lâmina do machado (metal)
+                ctx.fillStyle = '#aaaaaa';
+                ctx.fillRect(15 * f, -5, 6 * f, 9);
+                ctx.fillStyle = '#cccccc';
+                ctx.fillRect(16 * f, -6, 3 * f, 2); // fio superior
+                ctx.fillRect(16 * f,  5, 3 * f, 2); // fio inferior
+            } else if (tool === 'sword') {
+                // Lâmina (prateado)
+                ctx.fillStyle = '#bbbbcc';
+                ctx.fillRect(0, -2, 24 * f, 3);
+                // Guarda-mão (dourado)
+                ctx.fillStyle = '#ddaa22';
+                ctx.fillRect(4 * f, -4, 3 * f, 7);
+                // Ponta
+                ctx.fillStyle = '#ddddee';
+                ctx.fillRect(21 * f, -1, 4 * f, 2);
+            } else {
+                // Picareta — cabo (marrom) + cabeça em L
+                ctx.fillStyle = '#7a4e2d';
+                ctx.fillRect(0, -1, 20 * f, 2);
+                // Corpo da cabeça (metal)
+                ctx.fillStyle = '#999999';
+                ctx.fillRect(14 * f, -3, 7 * f, 3);
+                // Ponta superior (bico)
+                ctx.fillStyle = '#bbbbbb';
+                ctx.fillRect(19 * f, -6, 3 * f, 4);
+                // Ponta inferior (ancinho)
+                ctx.fillStyle = '#aaaaaa';
+                ctx.fillRect(19 * f,  1, 3 * f, 3);
+            }
+
             ctx.restore();
         }
     }
