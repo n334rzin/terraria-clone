@@ -6,6 +6,24 @@ const MINE_REACH = 5; // blocks
 const PLACE_REACH = 5;
 const INVULN_TIME = 0.5; // seconds after taking damage
 
+// Blocos orgânicos: exigem MACHADO para minerar com eficiência máxima.
+// Picareta consegue minerar madeira, mas com penalidade severa.
+const ORGANIC_BLOCKS = new Set([BLOCK.WOOD, BLOCK.LEAVES, BLOCK.PLANK]);
+
+// Blocos minerais: MACHADO não consegue minerar — só picareta.
+// (tudo que não está em ORGANIC_BLOCKS)
+function _isOrganic(blockId) { return ORGANIC_BLOCKS.has(blockId); }
+function _isMineral(blockId) {
+    return !ORGANIC_BLOCKS.has(blockId)
+        && blockId !== BLOCK.AIR
+        && blockId !== BLOCK.BEDROCK
+        && blockId !== BLOCK.TORCH
+        && blockId !== BLOCK.COBWEB
+        && blockId !== BLOCK.WORKBENCH
+        && blockId !== BLOCK.FURNACE
+        && blockId !== BLOCK.ANVIL;
+}
+
 class CombatSystem {
     constructor(chunkManager, inventorySystem, entityManager, lighting, hud) {
         this.chunkManager = chunkManager;
@@ -18,6 +36,8 @@ class CombatSystem {
         this.miningTarget = null; // { bx, by }
         this.miningProgress = 0;
         this.miningRequired = 0;
+        this.wrongTool = false;        // true quando ferramenta errada está selecionada
+        this.wrongToolTimer = 0;       // cooldown para repetir a mensagem
 
         // Attack state
         this.attackCooldown = 0;
@@ -36,7 +56,9 @@ class CombatSystem {
      * Main update: processes mouse interactions, attacks, contact damage.
      */
     update(dt, player, input) {
-        this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+        this.attackCooldown  = Math.max(0, this.attackCooldown - dt);
+        this.wrongToolTimer  = Math.max(0, this.wrongToolTimer  - dt);
+        this.wrongTool = false; // reset; será reavaliado abaixo
 
         // Player invulnerability timer
         if (player.invulnTimer > 0) player.invulnTimer -= dt;
@@ -95,55 +117,71 @@ class CombatSystem {
 
     /**
      * Mine a block progressively.
+     * Especialização de ferramentas:
+     *   • Machado  → orgânicos (madeira/folhas/tábua) em velocidade total; minerais BLOQUEADO.
+     *   • Picareta → minerais em velocidade total (escalado por tier); orgânicos a 15%.
      */
     _handleMining(dt, bx, by, tool) {
         const blockId = this.chunkManager.getBlockAt(bx, by);
         if (blockId === BLOCK.AIR) return;
         if (blockId === BLOCK.BEDROCK) return;
 
-        // Tier check: pickaxe must meet block's mining tier
+        const organic = _isOrganic(blockId);
+        const mineral = _isMineral(blockId);
+
+        // ── Verificação de tipo de ferramenta ──────────────────────────────
+        if (tool.toolKind === 'axe' && mineral) {
+            // Machado em pedra/minério: bloqueado completamente
+            this.wrongTool = true;
+            if (this.wrongToolTimer <= 0) {
+                if (this.hud) this.hud.showMessage('Use a Picareta para minérios!', 2.5, '#ffaa44');
+                this.wrongToolTimer = 2.5;
+            }
+            this.miningTarget = null;
+            this.miningProgress = 0;
+            return;
+        }
+
+        // ── Verificação de tier (picareta muito fraca) ─────────────────────
         if (!canMineTier(tool, blockId)) {
-            if (this.hud && Math.random() < dt * 2) {
-                this.hud.showMessage('Picareta muito fraca para este bloco!', 2, '#ff8888');
+            this.wrongTool = true;
+            if (this.wrongToolTimer <= 0) {
+                if (this.hud) this.hud.showMessage('Picareta muito fraca! Evolua as ferramentas.', 2.5, '#ff6666');
+                this.wrongToolTimer = 2.5;
             }
             return;
         }
 
-        // Start or continue mining
+        // ── Inicia / continua mineração ────────────────────────────────────
         if (!this.miningTarget || this.miningTarget.bx !== bx || this.miningTarget.by !== by) {
             this.miningTarget = { bx, by };
             this.miningProgress = 0;
             this.miningRequired = BLOCK_HARDNESS[blockId] || 5;
         }
 
-        // Tool kind bonus: axes mine wood faster, pickaxes mine stone faster
+        // Multiplicador por tipo de ferramenta:
+        //   • Machado em orgânico  → +50% (especialização)
+        //   • Picareta em orgânico → −85% (desincentivo, mas possível em emergência)
+        //   • Picareta em mineral  → normal (base 1.0)
         let toolKindMod = 1.0;
-        const isWoodBlock = (blockId === BLOCK.WOOD || blockId === BLOCK.LEAVES);
-        if (isWoodBlock && tool.toolKind === 'axe') {
-            toolKindMod = 1.5; // axe is 50% faster on wood
-        } else if (isWoodBlock && tool.toolKind !== 'axe') {
-            toolKindMod = 0.4; // pickaxe is slow on wood
-        } else if (!isWoodBlock && tool.toolKind === 'axe') {
-            toolKindMod = 0.4; // axe is slow on non-wood
+        if (organic) {
+            toolKindMod = (tool.toolKind === 'axe') ? 1.5 : 0.15;
         }
+
         const mineSpeedMult = window._statSystem ? window._statSystem.mineSpeed : 1;
         this.miningProgress += (tool.mineSpeed || 1) * toolKindMod * mineSpeedMult * dt * 5;
 
-        // Mining tick sound
+        // Som de mineração
         if (Math.random() < dt * 8 && window._audio) window._audio.playMine();
 
         if (this.miningProgress >= this.miningRequired) {
-            // Break block → spawn drop físico (em vez de adicionar direto ao inventário)
             const dropId = BLOCK_TO_ITEM[blockId];
             if (dropId) {
                 const cx = bx * BLOCK_SIZE + BLOCK_SIZE * 0.5;
                 const cy = by * BLOCK_SIZE + BLOCK_SIZE * 0.5;
                 this.entities.spawnDrop(dropId, 1, cx, cy, { scatter: 30 });
             }
-            // If it was a torch, remove from lighting
-            if (blockId === BLOCK.TORCH) {
-                this.lighting.removeTorch(bx, by);
-            }
+            if (blockId === BLOCK.TORCH) this.lighting.removeTorch(bx, by);
             this.chunkManager.setBlockAt(bx, by, BLOCK.AIR);
             this.miningTarget = null;
             this.miningProgress = 0;
@@ -340,7 +378,7 @@ class CombatSystem {
             ctx.restore();
         }
 
-        // Block highlight (cursor)
+        // Block highlight (cursor) — cor muda conforme ferramenta correta/errada
         if (!this.inventory.isOpen) {
             const mouseWorld = camera.screenToWorld(
                 window._input ? window._input.mouseScreenX : 0,
@@ -348,9 +386,26 @@ class CombatSystem {
             const hbx = Math.floor(mouseWorld.wx / BLOCK_SIZE);
             const hby = Math.floor(mouseWorld.wy / BLOCK_SIZE);
             const { sx, sy } = camera.worldToScreen(hbx * BLOCK_SIZE, hby * BLOCK_SIZE);
-            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(sx, sy, BLOCK_SIZE, BLOCK_SIZE);
+
+            if (this.wrongTool) {
+                // Cursor vermelho com X → ferramenta errada
+                ctx.strokeStyle = 'rgba(255,80,80,0.85)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(sx, sy, BLOCK_SIZE, BLOCK_SIZE);
+                // X vermelho no bloco
+                ctx.fillStyle = 'rgba(255,60,60,0.55)';
+                ctx.fillRect(sx, sy, BLOCK_SIZE, BLOCK_SIZE);
+                ctx.strokeStyle = '#ff4444';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(sx + 3, sy + 3); ctx.lineTo(sx + BLOCK_SIZE - 3, sy + BLOCK_SIZE - 3);
+                ctx.moveTo(sx + BLOCK_SIZE - 3, sy + 3); ctx.lineTo(sx + 3, sy + BLOCK_SIZE - 3);
+                ctx.stroke();
+            } else {
+                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(sx, sy, BLOCK_SIZE, BLOCK_SIZE);
+            }
         }
 
         // Web slow indicator

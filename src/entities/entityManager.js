@@ -3,10 +3,14 @@
  * Handles spawn rules based on time-of-day, depth, and distance from player.
  */
 
-const MAX_ENEMIES = 30;
-const SPAWN_INTERVAL = 2.5; // seconds between spawn attempts
-const SPAWN_RANGE_MIN = 400; // min distance from player to spawn
-const SPAWN_RANGE_MAX = 800; // max distance
+const MAX_ENEMIES      = 30;   // limite absoluto (sem bosses)
+const MAX_SURFACE      = 8;    // limite por bioma — superfície
+const MAX_CAVERN       = 12;   // limite por bioma — cavernas
+const MAX_UNDERWORLD   = 10;   // limite por bioma — submundo
+const SPAWN_INTERVAL_BASE = 2.5; // s mínimo entre tentativas
+const SPAWN_INTERVAL_MAX  = 12;  // s máximo (quando próximo do cap)
+const SPAWN_RANGE_MIN  = 400;
+const SPAWN_RANGE_MAX  = 800;
 
 class EntityManager {
     constructor(chunkManager, lighting) {
@@ -62,11 +66,20 @@ class EntityManager {
         const px = player.x + player.w * 0.5;
         const py = player.y + player.h * 0.5;
 
-        // Spawn logic
+        // ── Controle Populacional ─────────────────────────────────────────
+        // Bosses não contam para o cap regular; o intervalo de spawn escala
+        // dinamicamente: quanto mais inimigos, mais raro o próximo surgimento.
+        const nonBossCount = this.enemies.filter(e => !e.isBoss).length;
+        const loadFactor   = nonBossCount / MAX_ENEMIES;            // 0 → 1
+        const spawnInterval = SPAWN_INTERVAL_BASE
+            + loadFactor * (SPAWN_INTERVAL_MAX - SPAWN_INTERVAL_BASE); // 2.5s → 12s
+
         this.spawnTimer -= dt;
-        if (this.spawnTimer <= 0 && this.enemies.length < MAX_ENEMIES && !player.isDead) {
-            this._trySpawn(px, py, player);
-            this.spawnTimer = SPAWN_INTERVAL;
+        if (this.spawnTimer <= 0 && !player.isDead) {
+            if (this._canSpawnInBiome(py)) {
+                this._trySpawn(px, py, player);
+            }
+            this.spawnTimer = spawnInterval;
         }
 
         // Update + despawn enemies
@@ -129,32 +142,46 @@ class EntityManager {
         const isNight = this.lighting.isNight();
 
         let enemy;
+        let biome;
         if (by >= underworldThreshold) {
-            // Underworld: Fire Demon, Scrap Sentinel
-            if (Math.random() < 0.3) {
-                enemy = new ScrapSentinel(sx, sy);
-            } else {
-                enemy = new FireDemon(sx, sy);
-            }
+            biome = 'underworld';
+            if (Math.random() < 0.3) enemy = new ScrapSentinel(sx, sy);
+            else                      enemy = new FireDemon(sx, sy);
         } else if (by >= cavernThreshold) {
-            // Cavern: Bat, Cyber Infiltrator, Crystal Spider
+            biome = 'cavern';
             const roll = Math.random();
-            if (roll < 0.4) {
-                enemy = new Bat(sx, sy);
-            } else if (roll < 0.7) {
-                enemy = new CyberInfiltrator(sx, sy);
-            } else {
-                enemy = new CrystalSpider(sx, sy);
-            }
+            if      (roll < 0.4) enemy = new Bat(sx, sy);
+            else if (roll < 0.7) enemy = new CyberInfiltrator(sx, sy);
+            else                  enemy = new CrystalSpider(sx, sy);
         } else if (isNight) {
-            // Surface at night: Zombie with neon eyes
+            biome = 'surface';
             enemy = new Zombie(sx, sy);
         } else {
-            // Surface during day: Slime
+            biome = 'surface';
             enemy = new Slime(sx, sy);
         }
 
+        enemy._biome = biome; // marca bioma para controle populacional
         this.enemies.push(enemy);
+    }
+
+    /**
+     * Verifica se o bioma atual ainda tem espaço para spawnar.
+     * Conta apenas inimigos não-boss do mesmo bioma.
+     */
+    _canSpawnInBiome(playerWorldY) {
+        const worldH = this.chunkManager.worldH;
+        const by = Math.floor(playerWorldY / BLOCK_SIZE);
+        const cavernY    = Math.floor(worldH * 0.5);
+        const underworldY= Math.floor(worldH * 0.8);
+
+        let biome, cap;
+        if (by >= underworldY)     { biome = 'underworld'; cap = MAX_UNDERWORLD; }
+        else if (by >= cavernY)    { biome = 'cavern';      cap = MAX_CAVERN;     }
+        else                        { biome = 'surface';     cap = MAX_SURFACE;    }
+
+        const biomeCount = this.enemies.filter(e => !e.isBoss && e._biome === biome).length;
+        return biomeCount < cap;
     }
 
     /**
