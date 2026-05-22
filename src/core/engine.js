@@ -90,6 +90,7 @@ function startGame(config) {
 
     // Inventory
     inventory = new InventorySystem();
+    window._inventory = inventory;
 
     // Workstation detector (needs chunkManager)
     workstationDetector = new WorkstationDetector(chunkManager);
@@ -188,6 +189,12 @@ function _wireEvents() {
 
     events.on('block:place', ({ bx, by }) => {
         if (audio) audio.playPlace();
+    });
+
+    // --- Item coletado ---
+    events.on('item:pickup', ({ name, quantity, x, y }) => {
+        if (particles) particles.emitBlockBreak(x, y, '#ffee88');
+        if (hud) hud.showPickup(name, quantity);
     });
 
     // --- Combate ---

@@ -5,6 +5,7 @@
 class HUD {
     constructor() {
         this.messages = [];       // { text, timer, color }
+        this.pickups  = [];       // { text, timer, oy } — notificações de coleta (canto superior direito)
         this.screenShake = 0;     // shake timer in seconds
         this.deathScreen = false;
         this.victoryScreen = false;
@@ -13,13 +14,32 @@ class HUD {
         this.bossMaxHP = 0;
         this.bossName = '';
         this.showBossBar = false;
+
+        // Rate-limit pickup: acumula duplicatas antes de mostrar
+        this._pickupBatch = {};    // itemId → qty acumulado
+        this._pickupFlushTimer = 0;
     }
 
     /**
      * Show a temporary message on screen.
      */
     showMessage(text, duration = 4, color = '#ffffff') {
+        // Evita spam de mensagens idênticas
+        if (this.messages.length > 0 && this.messages[this.messages.length - 1].text === text) return;
         this.messages.push({ text, timer: duration, color });
+        if (this.messages.length > 5) this.messages.shift();
+    }
+
+    /**
+     * Mostra notificação de item coletado (lado direito, empilhado).
+     * Agrupa coletas idênticas em 0.25s para evitar spam.
+     */
+    showPickup(itemName, quantity) {
+        // Acumula no batch para evitar spam
+        const key = itemName;
+        if (!this._pickupBatch[key]) this._pickupBatch[key] = 0;
+        this._pickupBatch[key] += quantity;
+        this._pickupFlushTimer = 0.25; // flush em 0.25s
     }
 
     /**
@@ -47,9 +67,32 @@ class HUD {
 
         for (let i = this.messages.length - 1; i >= 0; i--) {
             this.messages[i].timer -= dt;
-            if (this.messages[i].timer <= 0) {
-                this.messages.splice(i, 1);
+            if (this.messages[i].timer <= 0) this.messages.splice(i, 1);
+        }
+
+        // Flush pickup batch
+        if (this._pickupFlushTimer > 0) {
+            this._pickupFlushTimer -= dt;
+            if (this._pickupFlushTimer <= 0) {
+                for (const [name, qty] of Object.entries(this._pickupBatch)) {
+                    const text = `+${qty}  ${name}`;
+                    // Mescla se já existe entrada com mesmo nome
+                    const exist = this.pickups.find(p => p.key === name);
+                    if (exist) {
+                        exist.text = text;
+                        exist.timer = 2.0;
+                    } else {
+                        this.pickups.push({ key: name, text, timer: 2.0 });
+                    }
+                    if (this.pickups.length > 8) this.pickups.shift();
+                }
+                this._pickupBatch = {};
             }
+        }
+
+        for (let i = this.pickups.length - 1; i >= 0; i--) {
+            this.pickups[i].timer -= dt;
+            if (this.pickups[i].timer <= 0) this.pickups.splice(i, 1);
         }
     }
 
@@ -79,6 +122,9 @@ class HUD {
 
         // Messages
         this._drawMessages(ctx, canvasW, canvasH);
+
+        // Pickup notifications (top-right)
+        this._drawPickups(ctx, canvasW);
 
         // Death screen
         if (this.deathScreen) {
@@ -197,6 +243,31 @@ class HUD {
             y += 38;
         }
         ctx.textAlign = 'left';
+    }
+
+    _drawPickups(ctx, canvasW) {
+        if (this.pickups.length === 0) return;
+        ctx.save();
+        ctx.font = '18px VT323, monospace';
+        ctx.textAlign = 'right';
+        const baseX = canvasW - 14;
+        let baseY = 64; // below hotbar area
+        for (const p of this.pickups) {
+            const alpha = Math.min(1, p.timer * 2);
+            const rise  = Math.max(0, (2.0 - p.timer) * 12); // sobe lentamente
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            // sombra
+            ctx.fillStyle = 'rgba(0,0,0,0.65)';
+            ctx.fillText(p.text, baseX + 1, baseY - rise + 1);
+            // texto
+            ctx.fillStyle = '#b0ffb0';
+            ctx.fillText(p.text, baseX, baseY - rise);
+            ctx.restore();
+            baseY += 20;
+        }
+        ctx.textAlign = 'left';
+        ctx.restore();
     }
 
     _drawDeathScreen(ctx, canvasW, canvasH) {

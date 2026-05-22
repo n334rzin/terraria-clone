@@ -17,19 +17,19 @@
  */
 
 const DROP_LIFETIME       = 300;   // s — 5 minutos
-const DROP_PICKUP_DELAY   = 0.4;   // s — atraso inicial de pickup
+const DROP_PICKUP_DELAY   = 0.3;   // s — atraso inicial de pickup
 const DROP_GRAVITY        = 1100;
 const DROP_TERMINAL_VEL   = 700;
 const DROP_FRICTION_GROUND= 4;     // multiplicador exponencial
 const DROP_FRICTION_AIR   = 0.5;
-const DROP_MAGNET_RADIUS  = 120;   // px — raio de atração
-const DROP_MAGNET_FORCE   = 1800;  // px/s² em direção ao player
-const DROP_MAGNET_MAX_VEL = 700;
-const DROP_PICKUP_RADIUS  = 40;    // px — raio de coleta (player h/2 + margem)
-const DROP_SIZE           = 12;    // px (caixa de colisão e ícone)
-const DROP_BOB_AMPLITUDE  = 2;
-const DROP_BOB_SPEED      = 3;
-const DROP_MERGE_RADIUS   = 16;    // drops do mesmo tipo se fundem
+const DROP_MAGNET_RADIUS  = 200;   // px — raio de atração (ampliado para coleta automática)
+const DROP_MAGNET_FORCE   = 2200;  // px/s² em direção ao player
+const DROP_MAGNET_MAX_VEL = 800;
+const DROP_PICKUP_RADIUS  = 55;    // px — raio de coleta (player h/2 + margem generosa)
+const DROP_SIZE           = 14;    // px (caixa de colisão e ícone — ligeiramente maior)
+const DROP_BOB_AMPLITUDE  = 2.5;
+const DROP_BOB_SPEED      = 3.5;
+const DROP_MERGE_RADIUS   = 20;    // drops do mesmo tipo se fundem
 
 class DroppedItem {
     /**
@@ -207,6 +207,16 @@ class DroppedItem {
             if (this.quantity <= 0) {
                 this.dead = true;
                 if (window._audio) window._audio.playSelect();
+                // Feedback visual: evento de coleta com nome e posição
+                if (typeof events !== 'undefined') {
+                    events.emit('item:pickup', {
+                        itemId: this.itemId,
+                        name: this.def.name,
+                        quantity: added,
+                        x: this.x + this.w * 0.5,
+                        y: this.y + this.h * 0.5,
+                    });
+                }
                 return true;
             }
         }
@@ -246,46 +256,73 @@ class DroppedItem {
         // Piscar quando perto de despawnar (últimos 5s)
         if (this.lifetime < 5 && Math.floor(this.lifetime * 8) % 2 === 0) return;
 
-        const rx = (sx - this.w * 0.5) | 0;
-        const ry = (sy - this.h * 0.5 + bob) | 0;
+        // Escala dos drops: um pouco maior (18×18) para melhor visibilidade
+        const dw = 18, dh = 18;
+        const rx = (sx - dw * 0.5) | 0;
+        const ry = (sy - dh * 0.5 + bob) | 0;
 
-        // Glow para raridade
-        if (this.rarity > 0) {
-            const glowColors = ['#fff', '#88ccff', '#ffdd44', '#cc66ff', '#ffaa00'];
-            const glowColor = glowColors[this.rarity];
-            const pulse = 0.5 + 0.5 * Math.sin(this.bobTime * 0.7);
-            ctx.fillStyle = glowColor;
-            ctx.globalAlpha = 0.15 + pulse * 0.15;
-            const glowSize = 6 + this.rarity * 2;
-            ctx.fillRect(rx - glowSize, ry - glowSize, this.w + glowSize * 2, this.h + glowSize * 2);
-            ctx.globalAlpha = 1;
-        }
+        // Glow de raridade
+        const glowColors = ['#fff', '#88ccff', '#ffdd44', '#cc66ff', '#ffaa00'];
+        const glowRadius = this.rarity > 0 ? 6 + this.rarity * 2 : 3;
+        const glowCol = this.rarity > 0 ? glowColors[this.rarity] : this.def.color || '#fff';
+        const pulse = 0.4 + 0.4 * Math.sin(this.bobTime * 0.8);
+        ctx.fillStyle = glowCol;
+        ctx.globalAlpha = (this.rarity > 0 ? 0.25 : 0.10) + pulse * 0.12;
+        ctx.fillRect(rx - glowRadius, ry - glowRadius, dw + glowRadius * 2, dh + glowRadius * 2);
+        ctx.globalAlpha = 1;
 
-        // Sombra (no chão)
+        // Sombra elíptica no chão
         if (this.onGround && !this.magnetized) {
-            ctx.fillStyle = 'rgba(0,0,0,0.35)';
-            ctx.fillRect(rx + 1, ry + this.h + 1 - bob, this.w - 2, 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.30)';
+            ctx.beginPath();
+            ctx.ellipse(rx + dw * 0.5, ry + dh + 2 - bob, dw * 0.4, 2.5, 0, 0, Math.PI * 2);
+            ctx.fill();
         }
 
-        // Outline preta
-        ctx.fillStyle = '#000';
-        ctx.fillRect(rx - 1, ry - 1, this.w + 2, this.h + 2);
+        // Borda escura (outline)
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.fillRect(rx - 1, ry - 1, dw + 2, dh + 2);
 
-        // Background do ícone
-        ctx.fillStyle = this.def.iconBg || '#444';
-        ctx.fillRect(rx, ry, this.w, this.h);
+        // Ícone do item (usa o sistema de ícones do InventorySystem se disponível)
+        // — _drawItemIcon já preenche o background (iconBg) e o ícone
+        if (window._inventory && window._inventory._drawItemIcon) {
+            window._inventory._drawItemIcon(ctx, rx, ry, dw, this.def);
+        } else {
+            // Fallback: cor sólida + pequeno detalhe
+            ctx.fillStyle = this.def.iconBg || '#222';
+            ctx.fillRect(rx, ry, dw, dh);
+            ctx.fillStyle = this.def.color || '#fff';
+            ctx.fillRect(rx + 3, ry + 3, dw - 6, dh - 6);
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillRect(rx + 3, ry + 3, 4, 4);
+        }
 
-        // "Frente" do item
-        ctx.fillStyle = this.def.color || '#fff';
-        ctx.fillRect(rx + 2, ry + 2, this.w - 4, this.h - 4);
+        // Reflexo de luz no topo (por cima do ícone)
+        ctx.fillStyle = 'rgba(255,255,255,0.10)';
+        ctx.fillRect(rx, ry, dw, 3);
 
         // Stack count
         if (this.quantity > 1) {
-            ctx.font = 'bold 9px monospace';
+            ctx.font = 'bold 8px monospace';
+            ctx.textAlign = 'right';
             ctx.fillStyle = '#000';
-            ctx.fillText(this.quantity, rx + this.w - 5, ry + this.h + 7);
+            ctx.fillText(this.quantity, rx + dw - 0, ry + dh + 8);
             ctx.fillStyle = '#fff';
-            ctx.fillText(this.quantity, rx + this.w - 6, ry + this.h + 6);
+            ctx.fillText(this.quantity, rx + dw - 1, ry + dh + 7);
+            ctx.textAlign = 'left';
+        }
+
+        // Label com nome do item (mostra se magnetizado / perto do player)
+        if (this.magnetized) {
+            const name = this.def.name || this.itemId;
+            const short = name.length > 12 ? name.slice(0, 11) + '…' : name;
+            ctx.font = '7px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillText(short, rx + dw * 0.5 + 1, ry - 2);
+            ctx.fillStyle = '#ffffcc';
+            ctx.fillText(short, rx + dw * 0.5, ry - 3);
+            ctx.textAlign = 'left';
         }
     }
 }
