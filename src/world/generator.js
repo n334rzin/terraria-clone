@@ -110,9 +110,10 @@ const BLOCK = Object.freeze({
     WOOD:       15,
     LEAVES:     16,
     PLANK:      17,
-    WORKBENCH:  18,
-    FURNACE:    19,
-    ANVIL:      20,
+    WORKBENCH:      18,
+    FURNACE:        19,
+    ANVIL:          20,
+    ALCHEMY_TABLE:  21,
 });
 
 const BIOME = Object.freeze({
@@ -148,9 +149,10 @@ const BLOCK_COLORS = {
     [BLOCK.WOOD]:       '#6e4a22',
     [BLOCK.LEAVES]:     '#3a7a2a',
     [BLOCK.PLANK]:      '#a07840',
-    [BLOCK.WORKBENCH]:  '#a06030',
-    [BLOCK.FURNACE]:    '#444444',
-    [BLOCK.ANVIL]:      '#222230',
+    [BLOCK.WORKBENCH]:     '#a06030',
+    [BLOCK.FURNACE]:       '#444444',
+    [BLOCK.ANVIL]:         '#222230',
+    [BLOCK.ALCHEMY_TABLE]: '#4a2080',
 };
 
 // Utility: get vertical layer at a block-y given world height

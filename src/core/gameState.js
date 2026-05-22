@@ -138,8 +138,7 @@ class GameState {
         this.hud.showMessage(`${boss.bossName} despertou!`, 4, '#ff0000');
         this.hud.setBoss(boss.bossName, boss.hp, boss.maxHp);
         this.hud.showBossBar = true;
-
-        if (window._audio) window._audio.playDamage();
+        events.emit('boss:spawn', { boss, type: bossType });
         return true;
     }
 
@@ -147,27 +146,15 @@ class GameState {
         this.bossesDefeated.push(boss.type);
         this.hud.showMessage(`${boss.bossName} foi derrotado!`, 5, '#44ff44');
 
-        // Drops são spawnados pelo EntityManager via DROP_TABLES.
-        // Mensagem extra de hint para o jogador:
-        if (boss.type === 'probe') {
-            this.hud.showMessage('Drops espalhados! Colete-os.', 4, '#ffaa44');
-        } else if (boss.type === 'golem') {
-            this.hud.showMessage('Drops espalhados! Colete-os.', 4, '#ffaa44');
-        } else if (boss.type === 'eye') {
+        // audio.playVictory() is wired to this event in engine._wireEvents —
+        // do NOT call it here to avoid playing it twice.
+        events.emit('boss:death', { boss, type: boss.type });
+
+        // Hint for the final boss only — drops for all bosses are handled by DROP_TABLES.
+        if (boss.type === 'eye') {
             this.hud.showMessage('Artefato de Luz dropou! Leve à superfície para purificar!', 6, '#ffffff');
-        }
-
-        if (window._audio) window._audio.playVictory();
-    }
-
-    /**
-     * Hook chamado quando um inimigo morre.
-     * Drops já são spawnados pelo EntityManager — aqui só notificamos itens raros.
-     */
-    onEnemyKilled(enemy) {
-        // Notificar drop de cristal (visual feedback)
-        if (enemy.dropsCrystal) {
-            // O drop já foi spawnado fisicamente; só log opcional
+        } else {
+            this.hud.showMessage('Drops espalhados! Colete-os.', 4, '#ffaa44');
         }
     }
 
@@ -198,7 +185,10 @@ class GameState {
             bossesDefeated: this.bossesDefeated.length,
             coins: this.inventory.countItem('coin'),
         };
-        if (window._audio) window._audio.playSelect();
+        events.emit('game:victory', {
+            time: this.getPlayTimeString(),
+            bossesDefeated: this.bossesDefeated.length,
+        });
         return true;
     }
 

@@ -203,6 +203,35 @@ const ITEMS = {
         stackSize: 1, slot: 'accessory', moveSpeedBonus: 0.15, color: '#88ccff', iconBg: '#4488aa' },
     miner_charm:   { id: 'miner_charm', name: 'Amuleto do Minerador', type: ITEM_TYPE.SPECIAL,
         stackSize: 1, slot: 'accessory', mineSpeedBonus: 0.25, color: '#ffcc44', iconBg: '#aa8822' },
+
+    // ---- ESTAÇÃO DE ALQUIMIA ----
+    alchemy_table: { id: 'alchemy_table', name: 'Mesa de Alquimia', type: ITEM_TYPE.BLOCK,
+        stackSize: 10, blockId: 21, color: '#9955dd', iconBg: '#4a2080', stationKind: 'alchemy' },
+
+    // ---- POÇÕES DE ALQUIMIA ----
+    potion_speed:   { id: 'potion_speed',   name: 'Elixir Veloz',           type: ITEM_TYPE.CONSUMABLE,
+        stackSize: 20, color: '#44ffcc', iconBg: '#228866', buffId: 'alchemy_swift' },
+    potion_defense: { id: 'potion_defense', name: 'Elixir de Escudo',       type: ITEM_TYPE.CONSUMABLE,
+        stackSize: 20, color: '#4488ff', iconBg: '#224488', buffId: 'alchemy_shield' },
+    potion_mining:  { id: 'potion_mining',  name: 'Elixir do Minerador',    type: ITEM_TYPE.CONSUMABLE,
+        stackSize: 20, color: '#aaff44', iconBg: '#558822', buffId: 'mine_haste' },
+    potion_regen:   { id: 'potion_regen',   name: 'Elixir de Cura',         type: ITEM_TYPE.CONSUMABLE,
+        stackSize: 20, color: '#ff88cc', iconBg: '#882244', buffId: 'alchemy_regen' },
+
+    // ---- INGREDIENTES DE ALQUIMIA ----
+    herb_green:  { id: 'herb_green',  name: 'Erva Verde',    type: ITEM_TYPE.MATERIAL, stackSize: 50, color: '#44dd44', iconBg: '#226622' },
+    herb_blue:   { id: 'herb_blue',   name: 'Erva Azul',     type: ITEM_TYPE.MATERIAL, stackSize: 50, color: '#4488ff', iconBg: '#224488' },
+    herb_red:    { id: 'herb_red',    name: 'Erva Vermelha', type: ITEM_TYPE.MATERIAL, stackSize: 50, color: '#ff4444', iconBg: '#882222' },
+    mushroom:    { id: 'mushroom',    name: 'Cogumelo',      type: ITEM_TYPE.MATERIAL, stackSize: 50, color: '#ddbb88', iconBg: '#886644' },
+    glowing_sap: { id: 'glowing_sap', name: 'Seiva Brilhante', type: ITEM_TYPE.MATERIAL, stackSize: 30, color: '#ffee44', iconBg: '#886600' },
+
+    // ---- SELA DE MONTARIA ----
+    slime_saddle: { id: 'slime_saddle', name: 'Sela de Slime',     type: ITEM_TYPE.SPECIAL,
+        stackSize: 1, color: '#88dd88', iconBg: '#446644', mountType: 'slime' },
+    batwing_mount: { id: 'batwing_mount', name: 'Asa de Morcego',  type: ITEM_TYPE.SPECIAL,
+        stackSize: 1, color: '#9944bb', iconBg: '#551177', mountType: 'bat' },
+    golem_saddle:  { id: 'golem_saddle',  name: 'Sela do Golem',   type: ITEM_TYPE.SPECIAL,
+        stackSize: 1, color: '#cc8844', iconBg: '#886622', mountType: 'golem' },
 };
 
 // Map block IDs → item IDs for drops
@@ -221,10 +250,11 @@ const BLOCK_TO_ITEM = {
     [BLOCK.COBWEB]:     null, // destroyed, no drop
     [BLOCK.WOOD]:       'wood',
     [BLOCK.LEAVES]:     'leaves',
-    [BLOCK.PLANK]:      'plank',
-    [BLOCK.WORKBENCH]:  'workbench',
-    [BLOCK.FURNACE]:    'furnace',
-    [BLOCK.ANVIL]:      'anvil',
+    [BLOCK.PLANK]:         'plank',
+    [BLOCK.WORKBENCH]:     'workbench',
+    [BLOCK.FURNACE]:       'furnace',
+    [BLOCK.ANVIL]:         'anvil',
+    [21]:                  'alchemy_table',
 };
 
 // Block hardness (base hits). Actual time = hardness / (pickaxe mineSpeed * 5)
@@ -249,6 +279,7 @@ const BLOCK_HARDNESS = {
     [BLOCK.WORKBENCH]:  8,
     [BLOCK.FURNACE]:    10,
     [BLOCK.ANVIL]:      12,
+    [21]:               10,
 };
 
 // Minimum pickaxe tier required to mine each block.
@@ -299,6 +330,24 @@ const RECIPES = {
     gold_helmet:    { station: 'anvil', materials: { gold_ore: 15, iron_ore: 5 } },
     gold_chest:     { station: 'anvil', materials: { gold_ore: 22, iron_ore: 8 } },
     gold_legs:      { station: 'anvil', materials: { gold_ore: 18, iron_ore: 6 } },
+
+    // ---- Mesa de Alquimia ----
+    alchemy_table: { station: 'workbench', materials: { plank: 20, crystal_fragment: 3, coal_ore: 5 } },
+
+    // ---- Poções (Mesa de Alquimia) ----
+    potion_speed:   { station: 'alchemy', materials: { herb_green: 3, mushroom: 1 } },
+    potion_defense: { station: 'alchemy', materials: { herb_blue: 3, stone: 5 } },
+    potion_mining:  { station: 'alchemy', materials: { herb_red: 2, coal_ore: 3 } },
+    potion_regen:   { station: 'alchemy', materials: { herb_green: 2, herb_red: 1, crystal_fragment: 1 } },
+
+    // ---- Selas de Montaria (Bancada / Bigorna) ----
+    slime_saddle:   { station: 'workbench', materials: { plank: 15, coal_ore: 5 } },
+    batwing_mount:  { station: 'anvil',     materials: { iron_ore: 10, crystal_fragment: 2 } },
+    golem_saddle:   { station: 'anvil',     materials: { gold_ore: 12, brass_fragment: 3, advanced_iron: 2 } },
+
+    // ---- Ingredientes de Alquimia (bancada) ----
+    herb_green:  { station: null, materials: { leaves: 3 } },
+    mushroom:    { station: null, materials: { dirt: 4, coal_ore: 1 } },
 };
 
 function getItemDef(itemId) {
@@ -374,26 +423,40 @@ const DROP_TABLES = {
 };
 
 /**
- * Retorna a drop table para uma classe/tipo de inimigo.
- * Mapeia tanto enemy.constructor.name quanto boss.type.
+ * Returns the drop table for an enemy instance.
+ *
+ * Dispatch is done on `enemy.type` (the numeric ENEMY_TYPE constant set in each
+ * constructor), NOT on `constructor.name`.  Using constructor.name is fragile
+ * because JS minifiers rename classes, and because it creates an invisible
+ * coupling between the class name string and this function.
+ *
+ * Boss types use the string keys ('probe' | 'golem' | 'eye') assigned in
+ * entityManager.spawnBoss() alongside the numeric ENEMY_TYPE constant.
+ *
+ * To add a new enemy: assign `this.type = ENEMY_TYPE.YOUR_TYPE` in the
+ * constructor, add a DROP_TABLES entry, and add a case here.
+ *
+ * @param {Enemy} enemy
+ * @returns {Array|null}
  */
 function getDropTable(enemy) {
     if (!enemy) return null;
-    // Bosses têm .type ('probe' | 'golem' | 'eye')
-    if (enemy.type === 'probe') return DROP_TABLES.boss_probe;
-    if (enemy.type === 'golem') return DROP_TABLES.boss_golem;
-    if (enemy.type === 'eye')   return DROP_TABLES.boss_eye;
 
-    // Inimigos comuns: usa nome da classe
-    const name = enemy.constructor && enemy.constructor.name;
-    switch (name) {
-        case 'Slime':            return DROP_TABLES.slime;
-        case 'Zombie':           return DROP_TABLES.zombie;
-        case 'Bat':              return DROP_TABLES.bat;
-        case 'CyberInfiltrator': return DROP_TABLES.cyber_infiltrator;
-        case 'CrystalSpider':    return DROP_TABLES.crystal_spider;
-        case 'FireDemon':        return DROP_TABLES.fire_demon;
-        case 'ScrapSentinel':    return DROP_TABLES.scrap_sentinel;
+    switch (enemy.type) {
+        // ── Bosses (string type keys) ──────────────────────────────────────
+        case 'probe': return DROP_TABLES.boss_probe;
+        case 'golem': return DROP_TABLES.boss_golem;
+        case 'eye':   return DROP_TABLES.boss_eye;
+
+        // ── Common enemies (ENEMY_TYPE numeric constants) ──────────────────
+        case ENEMY_TYPE.SLIME:            return DROP_TABLES.slime;
+        case ENEMY_TYPE.ZOMBIE:           return DROP_TABLES.zombie;
+        case ENEMY_TYPE.BAT:              return DROP_TABLES.bat;
+        case ENEMY_TYPE.CYBER_INFILTRATOR:return DROP_TABLES.cyber_infiltrator;
+        case ENEMY_TYPE.CRYSTAL_SPIDER:   return DROP_TABLES.crystal_spider;
+        case ENEMY_TYPE.FIRE_DEMON:       return DROP_TABLES.fire_demon;
+        case ENEMY_TYPE.SCRAP_SENTINEL:   return DROP_TABLES.scrap_sentinel;
+
         default: return null;
     }
 }
