@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TerraVoxel — Sandbox 2D</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Cinzel:wght@600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- HUD overlay -->
+    <div id="hud">
+        <div id="fps-counter">FPS: --</div>
+        <div id="debug-info"></div>
+    </div>
+
+    <!-- Load order: dependencies first, engine last -->
+    <script src="src/core/camera.js"></script>
+    <script src="src/world/generator.js"></script>
+    <script src="src/world/chunkManager.js"></script>
+    <script src="src/items/itemRegistry.js"></script>
+    <script src="src/world/blockTextures.js"></script>
+    <script src="src/world/lighting.js"></script>
+    <script src="src/core/audio.js"></script>
+    <script src="src/core/particles.js"></script>
+    <script src="src/core/input.js"></script>
+    <script src="src/ui/inventory.js"></script>
+    <script src="src/ui/hud.js"></script>
+    <script src="src/ui/menu.js"></script>
+    <script src="src/ui/dialogue.js"></script>
+    <script src="src/world/workstation.js"></script>
+    <script src="src/ui/craftingUI.js"></script>
+    <script src="src/items/equipment.js"></script>
+    <script src="src/entities/buffs.js"></script>
+    <script src="src/entities/enemies.js"></script>
+    <script src="src/entities/droppedItem.js"></script>
+    <script src="src/entities/entityManager.js"></script>
+    <script src="src/entities/npc.js"></script>
+    <script src="src/combat/combat.js"></script>
+    <script src="src/entities/player.js"></script>
+    <script src="src/core/qaBot.js"></script>
+    <script src="src/core/gameState.js"></script>
+    <script src="src/core/engine.js"></script>
+</body>
+</html>
