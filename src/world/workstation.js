@@ -8,9 +8,10 @@
 const STATION_RANGE = 4; // raio em blocos
 
 const STATION_BLOCKS = {
-    [BLOCK.WORKBENCH]: 'workbench',
-    [BLOCK.FURNACE]:   'furnace',
-    [BLOCK.ANVIL]:     'anvil',
+    [BLOCK.WORKBENCH]:     'workbench',
+    [BLOCK.FURNACE]:       'furnace',
+    [BLOCK.ANVIL]:         'anvil',
+    [BLOCK.ALCHEMY_TABLE]: 'alchemy',
 };
 
 class WorkstationDetector {

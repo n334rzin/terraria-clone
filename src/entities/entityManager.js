@@ -17,8 +17,12 @@ class EntityManager {
         this.totalKills = 0;
         this.boss = null;
 
-        // Drop manager (entidades físicas de itens caídos)
         this.dropManager = new DropManager(chunkManager);
+
+        // Group aggro: when any enemy takes damage, alert nearby same-type enemies
+        events.on('enemy:damage', ({ enemy, x, y }) => {
+            if (enemy && !enemy.isBoss) this._alertNearby(x, y, enemy.type, 300);
+        });
     }
 
     /**
@@ -151,6 +155,22 @@ class EntityManager {
         }
 
         this.enemies.push(enemy);
+    }
+
+    /**
+     * Alert nearby enemies of the same type that a fight is happening.
+     * Called when an enemy takes damage; forces aggro on same-type units within radius.
+     */
+    _alertNearby(cx, cy, type, radius) {
+        for (const e of this.enemies) {
+            if (e.type !== type || e.isBoss) continue;
+            const dx = (e.x + e.w * 0.5) - cx;
+            const dy = (e.y + e.h * 0.5) - cy;
+            if (dx * dx + dy * dy < radius * radius) {
+                e.alerted = true;
+                e.alertTimer = 5; // stay alerted for 5 seconds
+            }
+        }
     }
 
     /**

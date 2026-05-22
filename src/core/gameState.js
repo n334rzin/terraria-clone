@@ -138,14 +138,14 @@ class GameState {
         this.hud.showMessage(`${boss.bossName} despertou!`, 4, '#ff0000');
         this.hud.setBoss(boss.bossName, boss.hp, boss.maxHp);
         this.hud.showBossBar = true;
-
-        if (window._audio) window._audio.playDamage();
+        events.emit('boss:spawn', { boss, type: bossType });
         return true;
     }
 
     _onBossDefeated(boss) {
         this.bossesDefeated.push(boss.type);
         this.hud.showMessage(`${boss.bossName} foi derrotado!`, 5, '#44ff44');
+        events.emit('boss:death', { boss, type: boss.type });
 
         // Drops são spawnados pelo EntityManager via DROP_TABLES.
         // Mensagem extra de hint para o jogador:
@@ -198,7 +198,10 @@ class GameState {
             bossesDefeated: this.bossesDefeated.length,
             coins: this.inventory.countItem('coin'),
         };
-        if (window._audio) window._audio.playSelect();
+        events.emit('game:victory', {
+            time: this.getPlayTimeString(),
+            bossesDefeated: this.bossesDefeated.length,
+        });
         return true;
     }
 

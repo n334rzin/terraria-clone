@@ -37,6 +37,22 @@ const BUFF_DEFS = {
         name: 'Bem Alimentado', color: '#ffcc44', icon: '🍖',
         duration: 60, defenseBonus: 2, moveMultiplier: 1.05, hpPerSec: 0.5,
     },
+    mine_haste: {
+        name: 'Pressa do Minerador', color: '#aaff44', icon: '⛏',
+        duration: 20, mineMultiplier: 1.5,
+    },
+    alchemy_regen: {
+        name: 'Elixir de Cura', color: '#ff88cc', icon: '✦',
+        duration: 15, hpPerSec: 3,
+    },
+    alchemy_shield: {
+        name: 'Elixir de Escudo', color: '#4488ff', icon: '◆',
+        duration: 25, defenseBonus: 8,
+    },
+    alchemy_swift: {
+        name: 'Elixir Veloz', color: '#44ffcc', icon: '▶',
+        duration: 18, moveMultiplier: 1.4,
+    },
 };
 
 class BuffSystem {
@@ -79,6 +95,7 @@ class BuffSystem {
         let hpDelta = 0;
         let moveMultiplier = 1.0;
         let defenseBonus = 0;
+        let mineMultiplier = 1.0;
 
         for (const [id, buff] of this.active.entries()) {
             buff.remaining -= dt;
@@ -89,28 +106,17 @@ class BuffSystem {
 
             const d = buff.def;
 
-            // HP per second (regen or burn)
-            if (d.hpPerSec) {
-                hpDelta += d.hpPerSec * dt;
-            }
-
-            // Move multiplier (stacks multiplicatively)
-            if (d.moveMultiplier) {
-                moveMultiplier *= d.moveMultiplier;
-            }
-
-            // Defense bonus (stacks additively)
-            if (d.defenseBonus) {
-                defenseBonus += d.defenseBonus;
-            }
+            if (d.hpPerSec)       hpDelta        += d.hpPerSec * dt;
+            if (d.moveMultiplier) moveMultiplier  *= d.moveMultiplier;
+            if (d.defenseBonus)   defenseBonus    += d.defenseBonus;
+            if (d.mineMultiplier) mineMultiplier  *= d.mineMultiplier;
         }
 
-        // Apply HP changes
         if (hpDelta !== 0) {
             player.hp = Math.max(0, Math.min(player.maxHp, player.hp + hpDelta));
         }
 
-        return { hpDelta, moveMultiplier, defenseBonus };
+        return { hpDelta, moveMultiplier, defenseBonus, mineMultiplier };
     }
 
     /**

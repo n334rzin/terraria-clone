@@ -126,8 +126,8 @@ class CombatSystem {
         } else if (!isWoodBlock && tool.toolKind === 'axe') {
             toolKindMod = 0.4; // axe is slow on non-wood
         }
-        const equipMineBonus = window._equipment ? window._equipment.getMineSpeedMultiplier() : 1;
-        this.miningProgress += (tool.mineSpeed || 1) * toolKindMod * equipMineBonus * dt * 5;
+        const mineSpeedMult = window._statSystem ? window._statSystem.mineSpeed : 1;
+        this.miningProgress += (tool.mineSpeed || 1) * toolKindMod * mineSpeedMult * dt * 5;
 
         // Mining tick sound
         if (Math.random() < dt * 8 && window._audio) window._audio.playMine();
@@ -144,18 +144,11 @@ class CombatSystem {
             if (blockId === BLOCK.TORCH) {
                 this.lighting.removeTorch(bx, by);
             }
-            // Particles
-            if (window._particles) {
-                const color = BLOCK_COLORS[blockId] || '#666';
-                window._particles.emitBlockBreak(bx * BLOCK_SIZE, by * BLOCK_SIZE, color);
-            }
-            // Audio
-            if (window._audio) window._audio.playBlockBreak();
-
             this.chunkManager.setBlockAt(bx, by, BLOCK.AIR);
             this.miningTarget = null;
             this.miningProgress = 0;
             this.blocksMined++;
+            events.emit('block:break', { bx, by, blockId });
         }
     }
 
@@ -181,9 +174,7 @@ class CombatSystem {
 
         this.chunkManager.setBlockAt(bx, by, blockId);
         this.inventory.consumeSelected(1);
-
-        // Audio
-        if (window._audio) window._audio.playPlace();
+        events.emit('block:place', { bx, by, blockId, isLight: selectedItem.type === ITEM_TYPE.LIGHT });
 
         // If torch, register light
         if (selectedItem.type === ITEM_TYPE.LIGHT) {
@@ -226,12 +217,11 @@ class CombatSystem {
                     const knockDir = dx === 0 ? player.facing : Math.sign(dx);
                     e.takeDamage(item.damage, knockDir, -0.3, item.knockback * 40 || 300);
                     hitAny = true;
-                    // Hit particles
-                    if (window._particles) window._particles.emitHitSparks(ecx, ecy);
+                    events.emit('enemy:damage', { enemy: e, amount: item.damage, x: ecx, y: ecy, source: 'melee' });
                 }
             }
         }
-        if (hitAny && window._audio) window._audio.playHit();
+        if (hitAny) events.emit('combat:hit', { x: pcx, y: pcy });
     }
 
     /**
@@ -255,20 +245,16 @@ class CombatSystem {
                 // Hit detection
                 if (dist < 15) {
                     if (p.isWeb) {
-                        // Web slow effect
                         this.webSlowTimer = 3;
                         if (this.hud) this.hud.showMessage('Preso em teia! Movimento lento.', 2, '#aaaaaa');
-                        if (window._audio) window._audio.playHit();
+                        events.emit('player:webbed', { duration: 3 });
                     } else {
-                        // Damage projectile (apply defense)
-                        const projRaw = 10;
-                        const eqP = window._equipment;
-                        const bDef = window._buffs ? window._buffs._getDefenseBonus() : 0;
-                        const tDef = (eqP ? eqP.totalDefense : 0) + bDef;
-                        player.takeDamage(Math.max(1, Math.round(projRaw - tDef * 0.5)));
+                        const finalDmg = window._statSystem
+                            ? window._statSystem.applyDefense(10)
+                            : Math.max(1, 10);
+                        player.takeDamage(finalDmg);
                         this.hud.shake(0.15);
-                        if (window._audio) window._audio.playDamage();
-                        if (window._particles) window._particles.emitPlayerDamage(p.x, p.y);
+                        events.emit('player:damage', { amount: finalDmg, source: 'projectile', x: p.x, y: p.y });
                     }
                     e.projectiles.splice(i, 1);
                 }
@@ -293,20 +279,18 @@ class CombatSystem {
             // AABB intersection
             if (player.x < e.x + e.w && player.x + player.w > e.x &&
                 player.y < e.y + e.h && player.y + player.h > e.y) {
-                const rawDmg = e.damage;
-                const eq = window._equipment;
-                const buffDef = window._buffs ? window._buffs._getDefenseBonus() : 0;
-                const totalDef = (eq ? eq.totalDefense : 0) + buffDef;
-                const finalDmg = Math.max(1, Math.round(rawDmg - totalDef * 0.5));
+                const finalDmg = window._statSystem
+                    ? window._statSystem.applyDefense(e.damage)
+                    : Math.max(1, e.damage);
                 player.takeDamage(finalDmg);
                 this.hud.shake(0.2);
-                // Audio + particles
-                if (window._audio) window._audio.playDamage();
-                if (window._particles) window._particles.emitPlayerDamage(player.x + player.w * 0.5, player.y + player.h * 0.3);
-                // Knockback player away from enemy
                 const dx = player.x - e.x;
                 player.vx = Math.sign(dx) * 250;
                 player.vy = -200;
+                events.emit('player:damage', {
+                    amount: finalDmg, source: 'contact',
+                    x: player.x + player.w * 0.5, y: player.y + player.h * 0.3,
+                });
                 break;
             }
         }
@@ -358,12 +342,11 @@ class CombatSystem {
 
         // Block highlight (cursor)
         if (!this.inventory.isOpen) {
-            const hbx = Math.floor(camera.screenToWorld(
+            const mouseWorld = camera.screenToWorld(
                 window._input ? window._input.mouseScreenX : 0,
-                window._input ? window._input.mouseScreenY : 0).wx / BLOCK_SIZE);
-            const hby = Math.floor(camera.screenToWorld(
-                window._input ? window._input.mouseScreenX : 0,
-                window._input ? window._input.mouseScreenY : 0).wy / BLOCK_SIZE);
+                window._input ? window._input.mouseScreenY : 0);
+            const hbx = Math.floor(mouseWorld.wx / BLOCK_SIZE);
+            const hby = Math.floor(mouseWorld.wy / BLOCK_SIZE);
             const { sx, sy } = camera.worldToScreen(hbx * BLOCK_SIZE, hby * BLOCK_SIZE);
             ctx.strokeStyle = 'rgba(255,255,255,0.5)';
             ctx.lineWidth = 1;

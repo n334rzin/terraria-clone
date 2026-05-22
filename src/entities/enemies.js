@@ -45,6 +45,11 @@ class Enemy {
         if (!this.isBoss) {
             this.knockbackVx = knockDirX * knockForce;
             this.knockbackVy = knockDirY * knockForce - 150;
+            // Retreat at low HP (non-boss, 40% chance per hit)
+            if (this.hp > 0 && this.hp < this.maxHp * 0.25 && Math.random() < 0.4) {
+                this.retreating = true;
+                this.retreatTimer = 3 + Math.random() * 2;
+            }
         } else {
             this.knockbackVx = knockDirX * knockForce * 0.15;
             this.knockbackVy = knockDirY * knockForce * 0.1;
@@ -72,17 +77,23 @@ class Enemy {
 
     _collideWorld(cm) {
         const x0 = Math.floor(this.x / BLOCK_SIZE);
-        const y0 = Math.floor(this.y / BLOCK_SIZE);
         const x1 = Math.floor((this.x + this.w - 1) / BLOCK_SIZE);
-        const y1 = Math.floor((this.y + this.h - 1) / BLOCK_SIZE);
-        for (let bx = x0; bx <= x1; bx++) {
-            for (let by = y0; by <= y1; by++) {
+        if (this.vy > 0) {
+            const by = Math.floor((this.y + this.h - 1) / BLOCK_SIZE);
+            for (let bx = x0; bx <= x1; bx++) {
                 if (this._isSolidAt(bx, by, cm)) {
-                    if (this.vy > 0) {
-                        this.y = by * BLOCK_SIZE - this.h;
-                        this.vy = 0;
-                        this.onGround = true;
-                    }
+                    this.y = by * BLOCK_SIZE - this.h;
+                    this.vy = 0;
+                    this.onGround = true;
+                    return true;
+                }
+            }
+        } else if (this.vy < 0) {
+            const by = Math.floor(this.y / BLOCK_SIZE);
+            for (let bx = x0; bx <= x1; bx++) {
+                if (this._isSolidAt(bx, by, cm)) {
+                    this.y = (by + 1) * BLOCK_SIZE;
+                    this.vy = 0;
                     return true;
                 }
             }
@@ -91,16 +102,24 @@ class Enemy {
     }
 
     _collideX(cm) {
-        const nx0 = Math.floor(this.x / BLOCK_SIZE);
-        const nx1 = Math.floor((this.x + this.w - 1) / BLOCK_SIZE);
         const ny0 = Math.floor(this.y / BLOCK_SIZE);
         const ny1 = Math.floor((this.y + this.h - 1) / BLOCK_SIZE);
-        for (let bx = nx0; bx <= nx1; bx++) {
+        if (this.vx > 0) {
+            const bx = Math.floor((this.x + this.w - 1) / BLOCK_SIZE);
             for (let by = ny0; by <= ny1; by++) {
                 if (this._isSolidAt(bx, by, cm)) {
-                    if (this.vx > 0) this.x = bx * BLOCK_SIZE - this.w;
-                    else this.x = (bx + 1) * BLOCK_SIZE;
+                    this.x = bx * BLOCK_SIZE - this.w;
                     this.vx = 0;
+                    return;
+                }
+            }
+        } else if (this.vx < 0) {
+            const bx = Math.floor(this.x / BLOCK_SIZE);
+            for (let by = ny0; by <= ny1; by++) {
+                if (this._isSolidAt(bx, by, cm)) {
+                    this.x = (bx + 1) * BLOCK_SIZE;
+                    this.vx = 0;
+                    return;
                 }
             }
         }
@@ -129,12 +148,16 @@ class Slime extends Enemy {
         this.jumpInterval = 1.2;
         this.aggroRange = 200;
         this.onGround = false;
+        this.retreating = false; this.retreatTimer = 0;
+        this.alerted = false;   this.alertTimer = 0;
         this.color = `hsl(${100 + Math.random() * 60}, 70%, 45%)`;
     }
 
     update(dt, px, py, cm) {
         this._applyKnockback(dt);
         this.flashTimer = Math.max(0, this.flashTimer - dt);
+        if (this.retreatTimer > 0) { this.retreatTimer -= dt; if (this.retreatTimer <= 0) this.retreating = false; }
+        if (this.alertTimer  > 0) { this.alertTimer  -= dt; if (this.alertTimer  <= 0) this.alerted   = false; }
         this.vy += 900 * dt; if (this.vy > 600) this.vy = 600;
         this.onGround = false;
         this.y += this.vy * dt; this._collideWorld(cm);
@@ -143,8 +166,15 @@ class Slime extends Enemy {
         if (this.onGround && this.jumpCooldown <= 0) {
             const dx = px - this.x;
             this.vy = -350 - Math.random() * 100;
-            if (Math.abs(dx) < this.aggroRange) this.vx = Math.sign(dx) * (150 + Math.random() * 80);
-            else this.vx = (Math.random() - 0.5) * 120;
+            const effectiveRange = this.alerted ? 600 : this.aggroRange;
+            if (this.retreating) {
+                // Flee away from player
+                this.vx = -Math.sign(dx) * (200 + Math.random() * 80);
+            } else if (Math.abs(dx) < effectiveRange) {
+                this.vx = Math.sign(dx) * (150 + Math.random() * 80);
+            } else {
+                this.vx = (Math.random() - 0.5) * 120;
+            }
             this.jumpCooldown = this.jumpInterval + Math.random() * 0.5;
         }
     }
@@ -174,16 +204,22 @@ class Zombie extends Enemy {
         this.hp = 60; this.maxHp = 60;
         this.damage = 15; this.coinDrop = 3;
         this.speed = 60; this.onGround = false;
+        this.retreating = false; this.retreatTimer = 0;
+        this.alerted = false;   this.alertTimer = 0;
         this.neonPhase = Math.random() * Math.PI * 2;
     }
 
     update(dt, px, py, cm) {
         this._applyKnockback(dt);
         this.flashTimer = Math.max(0, this.flashTimer - dt);
+        if (this.retreatTimer > 0) { this.retreatTimer -= dt; if (this.retreatTimer <= 0) this.retreating = false; }
+        if (this.alertTimer  > 0) { this.alertTimer  -= dt; if (this.alertTimer  <= 0) this.alerted   = false; }
         this.neonPhase += dt * 4;
         this.vy += 1200 * dt; if (this.vy > 700) this.vy = 700;
-        const dx = px - this.x, dir = Math.sign(dx);
-        this.vx = dir * this.speed;
+        const baseSpeed = this.alerted ? this.speed * 1.5 : this.speed;
+        const dx = px - this.x;
+        const dir = this.retreating ? -Math.sign(dx) : Math.sign(dx);
+        this.vx = dir * baseSpeed;
         const fx = dir > 0 ? this.x + this.w + 2 : this.x - 2;
         const fbx = Math.floor(fx / BLOCK_SIZE), fby = Math.floor((this.y + this.h) / BLOCK_SIZE);
         const hby = Math.floor(this.y / BLOCK_SIZE);
@@ -749,7 +785,7 @@ class BossEye extends Enemy {
         this.hp = 2500; this.maxHp = 2500;
         this.damage = 30; this.isBoss = true;
         this.speed = 80;
-        this.bossPhase = 1;     // 1 or 2
+        this.bossPhase = 1;
         this.actionTimer = 5; this.actionCycle = 0;
         this.dashDir = { x: 0, y: 0 };
         this.dashSpeed = 500; this.isDashing = false; this.dashTimer = 0;
@@ -759,6 +795,8 @@ class BossEye extends Enemy {
         this.spawnCallback = null;
         this.bossName = 'O Grande Olho do Núcleo';
         this.mouthOpen = 0;
+        this.projectiles = [];     // active projectiles
+        this.burstTimer = 0;       // countdown between bursts (phase 2)
     }
 
     update(dt, px, py, cm) {
@@ -767,12 +805,22 @@ class BossEye extends Enemy {
         this.wobbleTime += dt;
         this.actionTimer -= dt;
 
+        // Update projectiles
+        for (let i = this.projectiles.length - 1; i >= 0; i--) {
+            const p = this.projectiles[i];
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.life -= dt;
+            if (p.life <= 0) this.projectiles.splice(i, 1);
+        }
+
         // Phase transition
         if (this.bossPhase === 1 && this.hp <= this.maxHp * 0.5) {
             this.bossPhase = 2;
             this.speed = 140;
             this.dashSpeed = 700;
             this.damage = 40;
+            this.burstTimer = 2;
         }
 
         const dx = px - (this.x + this.w * 0.5);
@@ -789,9 +837,27 @@ class BossEye extends Enemy {
             return;
         }
 
-        // Mouth animation for phase 2
+        // Phase 2: periodic projectile burst (8 directions)
         if (this.bossPhase === 2) {
             this.mouthOpen = Math.min(1, this.mouthOpen + dt * 2);
+            this.burstTimer -= dt;
+            if (this.burstTimer <= 0) {
+                this.burstTimer = 3.5;
+                const cx = this.x + this.w * 0.5;
+                const cy = this.y + this.h * 0.5;
+                const count = 8;
+                for (let i = 0; i < count; i++) {
+                    const angle = (i / count) * Math.PI * 2;
+                    const speed = 180;
+                    this.projectiles.push({
+                        x: cx, y: cy,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        life: 3.5,
+                        isWeb: false,
+                    });
+                }
+            }
         }
 
         if (this.actionTimer <= 0) {
@@ -807,7 +873,6 @@ class BossEye extends Enemy {
                 this.spawnCallback(this.x + this.w, this.y + this.h);
                 if (this.bossPhase === 2) this.spawnCallback(this.x + this.w * 0.5, this.y + this.h);
             } else if (this.bossPhase === 2 && this.actionCycle === 3) {
-                // Phase 2: double dash
                 this.dashDir = { x: dx / dist, y: dy / dist };
                 this.isDashing = true;
                 this.dashTimer = 1.5;
@@ -871,6 +936,20 @@ class BossEye extends Enemy {
             ctx.lineTo(cx + Math.cos(a) * 42 + Math.sin(this.wobbleTime + i) * 5,
                        cy + Math.sin(a) * 38 + Math.cos(this.wobbleTime + i) * 5);
             ctx.stroke();
+        }
+
+        // Phase 2 projectiles
+        for (const p of this.projectiles) {
+            const { sx: px, sy: py } = cam.worldToScreen(p.x, p.y);
+            const alpha = Math.min(1, p.life);
+            ctx.fillStyle = `rgba(255,80,0,${alpha})`;
+            ctx.beginPath();
+            ctx.arc(px, py, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = `rgba(255,200,0,${alpha * 0.5})`;
+            ctx.beginPath();
+            ctx.arc(px, py, 8, 0, Math.PI * 2);
+            ctx.fill();
         }
     }
 }

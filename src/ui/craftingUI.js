@@ -95,7 +95,6 @@ class CraftingUI {
         const amount = recipe.yield || 1;
         this.inventory.addItem(entry.id, amount);
 
-        if (window._audio) window._audio.playSelect();
         this.craftFlash = 0.3;
 
         const def = getItemDef(entry.id);
@@ -105,6 +104,8 @@ class CraftingUI {
                 : `${def.name} fabricado!`;
             this.hud.showMessage(msg, 2, '#44ff44');
         }
+
+        events.emit('item:craft', { itemId: entry.id, quantity: amount, def });
 
         // Refresh list (materiais mudaram)
         this.refresh();
